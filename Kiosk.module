@@ -7,7 +7,7 @@ class Kiosk extends WireData implements Module, ConfigurableModule {
       'title' => 'Kiosk',
       'summary' => 'Checkout System',
       'author' => 'FRUID',
-      'version' => 1,
+      'version' => 1.2,
       'installs' => 'ProcessKiosk',
       'autoload' => true
     ];
