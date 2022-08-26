@@ -1,0 +1,70 @@
+<?php namespace ProcessWire;
+
+class ProcessKiosk extends Process {
+
+  public static function getModuleinfo() {
+    return [
+      'title' => 'ProcessKiosk',
+      'summary' => 'kiosk orders dashboard',
+      'author' => 'FRE:D',
+      'version' => 1,
+      'requires' => 'Kiosk', 
+
+      'page' => [
+        'name' => 'kiosk_dashboard',
+        'title' => 'Kiosk Dashboard',
+      ],
+    ];
+  }
+
+
+  public function execute() {
+    $table = $this->modules->get('MarkupAdminDataTable');
+    $table->encodeEntities = false;
+
+    $allorders = wire('pages')->find('template=template_custom_order');
+    $allorders->sort('-created');
+
+    $out = '<h2>'.__('Bestellungen').' (' . count($allorders) . ')</h2>';
+
+    if(count($allorders)==0){return $out;}
+
+    foreach ($allorders as $order) :
+      $field_values = array();
+      $i=0;
+      foreach ($order->fields as $f) :
+        if($f->name=='title'){continue;}
+        if($f->name=='custom_order_products'){
+          $products_array = json_decode($order->custom_order_products, true);
+          foreach ($products_array as $item) {
+            $field_values[$i] .= wire('pages')->get($item['tag'])->title.' ('.$item['inCart'].')<br>';
+          }
+        } else {
+          $field_values[$i] = $order->get($f->name);
+        }
+        $i++;
+      endforeach;
+      $field_values[$i+1] = $order->createdStr;
+      $table->row($field_values);
+    endforeach;
+
+    $field_labels = array();
+    foreach ($order->fields as $f) :
+      if($f->name=='title'){continue;}
+      $field_labels[$i] = $f->label;
+      $i++;
+    endforeach;
+    $field_labels[$i+1] = 'order received';
+
+
+    $table->headerRow($field_labels);
+
+    $out .= $table->render();
+
+    return $out;
+
+  }
+
+}
+
+?>

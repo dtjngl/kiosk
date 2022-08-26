@@ -1,0 +1,1550 @@
+<?php namespace ProcessWire;
+
+class Kiosk extends WireData implements Module, ConfigurableModule {
+
+  public static function getModuleinfo() {
+    return [
+      'title' => 'Kiosk',
+      'summary' => 'Checkout System',
+      'author' => 'FRUID',
+      'version' => 1,
+      'installs' => 'ProcessKiosk',
+      'autoload' => true
+    ];
+  }
+
+
+  public function __construct() {
+    $customSettings = wire('modules')->getConfig($this);
+    foreach ($customSettings as $key => $value) {
+      $this->$key = $value;
+    }
+    if($this->paypal_mode == 'live') {
+      $this->paypal_client_id = $this->paypal_client_id_live;
+      $this->paypal_secret = $this->paypal_secret_live;
+    } else {
+      $this->paypal_client_id = $this->paypal_client_id_sandbox;
+      $this->paypal_secret = $this->paypal_secret_sandbox;
+    }
+    $this->addHookAfter('Page::render', $this, 'configDefaults');    
+  }
+
+
+  public function ___install() {
+    $fields = wire('fields');
+    $templates = wire('templates');
+    $fieldgroups = wire('fieldgroups');
+
+
+    // FIELDS
+
+    if(!$fields->get('kiosk_order_id')) :
+      $kiosk_order_id = new Field(); // int or text
+      $kiosk_order_id->type = $this->modules->get("FieldtypeInteger"); 
+      $kiosk_order_id->title = 'Kiosk Order ID'; 
+      $kiosk_order_id->name = wire('sanitizer')->pageName($kiosk_order_id->title, true);
+      $kiosk_order_id->label = 'Order ID';
+      $kiosk_order_id->tags = 'kiosk';
+      $kiosk_order_id->value = 0;
+      $kiosk_order_id->save();
+    endif;
+
+    if(!$fields->get('kiosk_order_products')) :
+      $kiosk_order_products = new Field();
+      $kiosk_order_products->type = $this->modules->get("FieldtypeTextarea"); 
+      $kiosk_order_products->title = 'Kiosk Order Products'; 
+      $kiosk_order_products->name = wire('sanitizer')->pageName($kiosk_order_products->title, true);
+      $kiosk_order_products->label = 'Products';
+      $kiosk_order_products->tags = 'kiosk';
+      $kiosk_order_products->save();
+    endif;
+
+    if(!$fields->get('kiosk_order_customer_name')) :
+      $kiosk_order_customer_name = new Field(); // text
+      $kiosk_order_customer_name->type = $this->modules->get("FieldtypeText"); 
+      $kiosk_order_customer_name->title = 'Kiosk Order Customer Name'; 
+      $kiosk_order_customer_name->name = wire('sanitizer')->pageName($kiosk_order_customer_name->title, true);
+      $kiosk_order_customer_name->label = 'Customer Name';
+      $kiosk_order_customer_name->tags = 'kiosk';
+      $kiosk_order_customer_name->save();
+    endif;
+
+    if(!$fields->get('kiosk_order_customer_emailaddress')) :
+      $kiosk_order_customer_emailaddress = new Field(); // email
+      $kiosk_order_customer_emailaddress->type = $this->modules->get("FieldtypeEmail"); 
+      $kiosk_order_customer_emailaddress->title = 'Kiosk Order Customer Emailaddress'; 
+      $kiosk_order_customer_emailaddress->name = wire('sanitizer')->pageName($kiosk_order_customer_emailaddress->title, true);
+      $kiosk_order_customer_emailaddress->label = 'Customer Email Address';
+      $kiosk_order_customer_emailaddress->tags = 'kiosk';
+      $kiosk_order_customer_emailaddress->save();
+    endif;
+
+    if(!$fields->get('kiosk_order_customer_address_billing')) :
+      $kiosk_order_customer_address = new Field(); // text
+      $kiosk_order_customer_address->type = $this->modules->get("FieldtypeTextarea"); 
+      $kiosk_order_customer_address->title = 'Kiosk Order Customer Address Billing'; 
+      $kiosk_order_customer_address->name = wire('sanitizer')->pageName($kiosk_order_customer_address->title, true);
+      $kiosk_order_customer_address->label = 'Customer Address Billing';
+      $kiosk_order_customer_address->tags = 'kiosk';
+      $kiosk_order_customer_address->save();
+    endif;
+
+    if(!$fields->get('kiosk_order_customer_address_shipping')) :
+      $kiosk_order_customer_address = new Field(); // text
+      $kiosk_order_customer_address->type = $this->modules->get("FieldtypeTextarea"); 
+      $kiosk_order_customer_address->title = 'Kiosk Order Customer Address Shipping'; 
+      $kiosk_order_customer_address->name = wire('sanitizer')->pageName($kiosk_order_customer_address->title, true);
+      $kiosk_order_customer_address->label = 'Customer Address Shipping';
+      $kiosk_order_customer_address->tags = 'kiosk';
+      $kiosk_order_customer_address->save();
+    endif;
+
+    if(!$fields->get('kiosk_order_payment_method')) :
+      $kiosk_order_payment_method = new Field(); // text
+      $kiosk_order_payment_method->type = $this->modules->get("FieldtypeText"); 
+      $kiosk_order_payment_method->title = 'Kiosk Order Payment Method'; 
+      $kiosk_order_payment_method->name = wire('sanitizer')->pageName($kiosk_order_payment_method->title, true);
+      $kiosk_order_payment_method->label = 'Payment Method';
+      $kiosk_order_payment_method->tags = 'kiosk';
+      $kiosk_order_payment_method->save();
+    endif;
+
+    if(!$fields->get('kiosk_order_total_and_shipping')) :
+      $kiosk_order_totalAndShipping = new Field(); // Total and Shipping
+      $kiosk_order_totalAndShipping->type = $this->modules->get("FieldtypeTextarea"); 
+      $kiosk_order_totalAndShipping->title = 'Kiosk Order Total and Shipping'; 
+      $kiosk_order_totalAndShipping->name = wire('sanitizer')->pageName($kiosk_order_totalAndShipping->title, true);
+      $kiosk_order_totalAndShipping->label = 'Total and Shipping';
+      $kiosk_order_totalAndShipping->tags = 'kiosk';
+      $kiosk_order_totalAndShipping->save();
+    endif;
+
+    if(!$fields->get('kiosk_product_tax_rate')) :
+      $kiosk_product_tax_rate = new Field(); // Kiosk Tax Rate
+      $kiosk_product_tax_rate->type = $this->modules->get("FieldtypeInteger"); 
+      $kiosk_product_tax_rate->title = 'Kiosk Product Tax Rate'; 
+      $kiosk_product_tax_rate->name = wire('sanitizer')->pageName($kiosk_product_tax_rate->title, true);
+      $kiosk_product_tax_rate->label = 'Tax Rate';
+      $kiosk_product_tax_rate->tags = 'kiosk';
+      $kiosk_product_tax_rate->description = 'included tax rate in percentages';
+      $kiosk_product_tax_rate->notes = 'e.g.: 10';
+      $kiosk_product_tax_rate->save();
+    endif;
+
+    if(!$fields->get('kiosk_product_width')) :
+      $kiosk_product_width = new Field(); // Kiosk Product Width
+      $kiosk_product_width->type = $this->modules->get("FieldtypeInteger"); 
+      $kiosk_product_width->title = 'Kiosk Product Width'; 
+      $kiosk_product_width->name = wire('sanitizer')->pageName($kiosk_product_width->title, true);
+      $kiosk_product_width->label = 'Product Width';
+      $kiosk_product_width->tags = 'kiosk';
+      $kiosk_product_width->description = 'will be used to calculate item image width proportionally to other items in the cart';
+      $kiosk_product_width->notes = 'e.g.: 15';
+      $kiosk_product_width->save();
+    endif;
+
+    if(!$fields->get('images')) :
+      $images = new Field(); // Kiosk Product Images
+      $images->type = $this->modules->get("FieldtypeImage"); 
+      $images->title = 'Images'; 
+      $images->name = wire('sanitizer')->pageName($images->title, true);
+      $images->label = 'Images';
+      $images->tags = 'kiosk';
+      $images->save();
+    endif;
+
+
+    if(!$fields->get('repeater_product_quantity')) :
+      $repeater_product_quantity = new Field(); // Kiosk Product Images
+      $repeater_product_quantity->type = $this->modules->get("FieldtypeInteger"); 
+      $repeater_product_quantity->title = 'repeater_product_quantity'; 
+      $repeater_product_quantity->name = wire('sanitizer')->pageName($repeater_product_quantity->title, true);
+      $repeater_product_quantity->label = 'Quantity';
+      $repeater_product_quantity->tags = 'kiosk';
+      $repeater_product_quantity->columnWidth = 30;
+      $repeater_product_quantity->save();
+    endif;
+
+    if(!$fields->get('repeater_product_stackprice')) :
+      $repeater_product_stackprice = new Field(); // Kiosk Product Images
+      $repeater_product_stackprice->type = $this->modules->get("FieldtypeInteger"); 
+      $repeater_product_stackprice->title = 'repeater_product_stackprice'; 
+      $repeater_product_stackprice->name = wire('sanitizer')->pageName($repeater_product_stackprice->title, true);
+      $repeater_product_stackprice->label = 'Stackprice';
+      $repeater_product_stackprice->tags = 'kiosk';
+      $repeater_product_stackprice->notes = 'gross price';
+      $repeater_product_stackprice->columnWidth = 30;
+      $repeater_product_stackprice->save();
+    endif;
+
+    if(!$fields->get('repeater_product_shipping')) :
+      $repeater_product_shipping = new Field(); // Kiosk Product Images
+      $repeater_product_shipping->type = $this->modules->get("FieldtypeInteger"); 
+      $repeater_product_shipping->title = 'repeater_product_shipping'; 
+      $repeater_product_shipping->name = wire('sanitizer')->pageName($repeater_product_shipping->title, true);
+      $repeater_product_shipping->label = 'Shipping';
+      $repeater_product_shipping->tags = 'kiosk';
+      $repeater_product_shipping->columnWidth = 30;
+      $repeater_product_shipping->save();
+    endif;
+
+
+    // TEMPLATES
+
+    if(!$templates->get('kiosk_orders')) :
+
+      $fg = new Fieldgroup();
+      $fg->name = 'fieldgroup_kiosk_orders';
+      // Add title field (mandatory!)
+      $fg->add($fields->get('title'));
+      $fg->save();             
+
+      $kiosk_orders = new Template();
+      $kiosk_orders->fieldgroup = $fg;
+      $kiosk_orders->name = 'kiosk_orders';
+      $kiosk_orders->pageLabelField = 'title'; 
+      $kiosk_orders->title = 'Kiosk Orders'; 
+      $kiosk_orders->tags = 'kiosk';
+      $kiosk_orders->save();
+    endif;
+
+    if(!$templates->get('kiosk_order')) :
+      $fg = new Fieldgroup();
+      $fg->name = 'fieldgroup_kiosk_order';
+      $fg->add($fields->get('title')); // Add title field (mandatory!)
+      $fg->add($fields->get('kiosk_order_id'));
+      $fg->add($fields->get('kiosk_order_products'));
+      $fg->add($fields->get('kiosk_order_customer_name'));
+      $fg->add($fields->get('kiosk_order_customer_emailaddress'));
+      $fg->add($fields->get('kiosk_order_customer_address_billing'));
+      $fg->add($fields->get('kiosk_order_customer_address_shipping'));
+      $fg->add($fields->get('kiosk_order_payment_method'));
+      $fg->add($fields->get('kiosk_order_total_and_shipping'));
+      $fg->save();             
+
+      $kiosk_order = new Template();
+      $kiosk_order->fieldgroup = $fg; 
+      $kiosk_order->name = 'kiosk_order';
+      $kiosk_order->pageLabelField = 'title'; 
+      $kiosk_order->parentTemplates = array($kiosk_orders->id);
+      $kiosk_order->noChildren = 1; 
+      $kiosk_order->title = 'Kiosk Order'; 
+      $kiosk_order->tags = 'kiosk';
+      $kiosk_order->save();
+    endif;
+
+    $kiosk_orders->childTemplates = array($kiosk_order->id);
+    $kiosk_orders->save();
+
+
+    if(!$templates->get('kiosk_checkout')) :
+      $fg = new Fieldgroup();
+      $fg->name = 'fieldgroup_kiosk_checkout';
+      $fg->add($fields->get('title'));
+      $fg->save();             
+
+      $kiosk_checkout = new Template();
+      $kiosk_checkout->fieldgroup = $fg;
+      $kiosk_checkout->name = 'kiosk_checkout';
+      $kiosk_checkout->pageLabelField = 'title'; 
+      $kiosk_checkout->title = 'Kiosk Checkout'; 
+      $kiosk_checkout->tags = 'kiosk';
+      $kiosk_checkout->save();
+    endif;
+
+
+
+    $parent = wire('pages')->get('/');
+    if ($parent->hasChildren('template=kiosk_checkout') == false) :
+      $c = new Page();
+      $c->parent = $parent;
+      $template = templates()->get('kiosk_checkout');
+      $c->template = $template;
+      $c->title = 'Checkout';
+      $c->name = 'checkout';
+      $c->save();
+    endif;
+
+
+    $parent = wire('pages')->get('/admin/page/');
+    if ($parent->hasChildren('name=kiosk_orders') == false) :
+      $c = new Page();
+      $c->parent = $parent;
+      $template = templates()->get('kiosk_orders');
+      $c->template = $template;
+      $c->title = 'Kiosk Orders';
+      $c->name = 'kiosk_orders';
+      $c->save();
+    endif;
+
+
+
+    $f = $this->createRepeater("kiosk_product_stack_prices","repeater_product_quantity repeater_product_stackprice repeater_product_shipping","Stack Prices","kiosk");
+
+    if(!$templates->get('kiosk_product')) :
+      $fg = new Fieldgroup();
+      $fg->name = 'fieldgroup_kiosk_product';
+      $fg->add($fields->get('title')); // Add title field (mandatory!)
+      $fg->add($fields->get('images'));
+      $fg->add($f);
+      $fg->add($fields->get('kiosk_product_tax_rate'));
+      $fg->add($fields->get('kiosk_product_width'));
+      $fg->save();             
+
+      $kiosk_product = new Template();
+      $kiosk_product->fieldgroup = $fg; 
+      $kiosk_product->name = 'kiosk_product';
+      $kiosk_product->pageLabelField = 'title'; 
+      $kiosk_product->noChildren = 1; 
+      $kiosk_product->title = 'Kiosk Product'; 
+      $kiosk_product->tags = 'kiosk';
+      $kiosk_product->save();
+    endif;
+
+  }
+
+
+  protected function createRepeater($repeaterName,$repeaterFields,$repeaterLabel,$repeaterTags) {
+
+    $fieldsArray = explode(' ',$repeaterFields);
+    
+    $f = new Field();
+    $f->type = $this->modules->get("FieldtypeRepeater");
+    $f->name = $repeaterName;
+    $f->label = $repeaterLabel;
+    $f->tags = $repeaterTags;
+    $f->repeaterReadyItems = 3;
+    
+    //Create fieldgroup
+    $repeaterFg = new Fieldgroup();
+    $repeaterFg->name = "repeater_$repeaterName";
+    
+    //Add fields to fieldgroup
+    foreach($fieldsArray as $field) {
+      $repeaterFg->append($this->fields->get($field));
+    }
+    
+    $repeaterFg->save();
+    
+    //Create template
+    $repeaterT = new Template();
+    $repeaterT->name = "repeater_$repeaterName";
+    $repeaterT->flags = 8;
+    $repeaterT->noChildren = 1;
+    $repeaterT->noParents = 1;
+    $repeaterT->noGlobal = 1;
+    $repeaterT->slashUrls = 1;
+    $repeaterT->fieldgroup = $repeaterFg;
+    
+    $repeaterT->save();
+    
+    //Setup page for the repeater - Very important
+    $repeaterPage = "for-field-{$f->id}";
+    $f->parent_id = $this->pages->get("name=$repeaterPage")->id;
+    $f->template_id = $repeaterT->id;
+    $f->repeaterReadyItems = 3;
+    
+    //Now, add the fields directly to the repeater field
+    foreach($fieldsArray as $field) {
+      $f->repeaterFields = $this->fields->get($field);
+    }
+    
+    $f->save();
+    
+    return $f;
+
+  }
+
+
+  /**
+   * Optional method called when the module is uninstalled
+   *
+   * This method undoes anything that the install() method did.
+   * For instance, remove installed DB tables, files, etc.
+   *
+   */
+
+
+  public function ___uninstall() {
+
+    $fields = wire('fields');
+    $fieldgroups = wire('fieldgroups');
+    $templates = wire('templates');
+
+    // $dashboard = wire('pages')->get('kiosk_dashboard');
+    // if($dashboard->id){
+    //   $dashboard->delete();
+    // }
+
+    $tcos = pages('template=kiosk_order, include=all');
+    foreach ($tcos as $tco) :
+      $tco->delete();
+    endforeach;
+
+    $tkps = pages('template=kiosk_product, include=all');
+    foreach ($tkps as $tkp) :
+      $tkp->delete();
+    endforeach;
+
+    wire('pages')->get('template=kiosk_orders')->delete(true);
+
+    wire('pages')->get('template=kiosk_checkout')->delete(true);
+
+    $kiosk_orders = $templates->get('kiosk_orders');
+    $kiosk_order = $templates->get('kiosk_order');
+    $kiosk_checkout = $templates->get('kiosk_checkout');
+    $kiosk_product = $templates->get('kiosk_product');
+ 
+    if($kiosk_orders) {
+      $templates->delete($kiosk_orders);
+    }
+
+    if($kiosk_order) {
+      $templates->delete($kiosk_order);
+    }
+
+    if($kiosk_checkout) {
+      $templates->delete($kiosk_checkout);
+    }
+
+    if($kiosk_product) {
+      $templates->delete($kiosk_product);
+    }
+
+
+    $fg = $fieldgroups->get('fieldgroup_kiosk_orders');
+    if($fg) $fieldgroups->delete($fg);
+
+    $fg = $fieldgroups->get('fieldgroup_kiosk_order');
+    if($fg) $fieldgroups->delete($fg);
+
+    $fg = $fieldgroups->get('fieldgroup_kiosk_checkout');
+    if($fg) $fieldgroups->delete($fg);
+
+    $fg = $fieldgroups->get('fieldgroup_kiosk_product');
+    if($fg) $fieldgroups->delete($fg);
+
+
+    if($fields->get('kiosk_order_id')) 
+      $fields->delete($fields->get('kiosk_order_id'));
+    if($fields->get('kiosk_order_products')) 
+      $fields->delete($fields->get('kiosk_order_products'));
+    if($fields->get('kiosk_order_customer_name')) 
+      $fields->delete($fields->get('kiosk_order_customer_name'));
+    if($fields->get('kiosk_order_customer_emailaddress')) 
+      $fields->delete($fields->get('kiosk_order_customer_emailaddress'));
+    if($fields->get('kiosk_order_customer_address_billing')) 
+      $fields->delete($fields->get('kiosk_order_customer_address_billing'));
+    if($fields->get('kiosk_order_customer_address_shipping')) 
+      $fields->delete($fields->get('kiosk_order_customer_address_shipping'));
+    if($fields->get('kiosk_order_payment_method')) 
+      $fields->delete($fields->get('kiosk_order_payment_method'));
+    if($fields->get('kiosk_order_shipping')) 
+      $fields->delete($fields->get('kiosk_order_shipping'));
+    if($fields->get('kiosk_order_status')) 
+      $fields->delete($fields->get('kiosk_order_status'));
+    if($fields->get('kiosk_order_total_and_shipping')) 
+      $fields->delete($fields->get('kiosk_order_total_and_shipping'));
+
+    if($fields->get('kiosk_product_tax_rate')) 
+      $fields->delete($fields->get('kiosk_product_tax_rate'));
+
+    if($fields->get('kiosk_product_width')) 
+      $fields->delete($fields->get('kiosk_product_width'));
+
+    if($fields->get('kiosk_product_stack_prices')) 
+      $fields->delete($fields->get('kiosk_product_stack_prices'));
+
+
+    if($fields->get('repeater_product_quantity')) 
+      $fields->delete($fields->get('repeater_product_quantity'));
+
+    if($fields->get('repeater_product_stackprice')) 
+      $fields->delete($fields->get('repeater_product_stackprice'));
+
+    if($fields->get('repeater_product_shipping')) 
+      $fields->delete($fields->get('repeater_product_shipping'));
+
+
+
+  }
+
+
+  public function successURL() {
+    return wire('pages')->get('/')->httpUrl.$this->shop_success_url;
+  }
+
+
+  public function errorURL() {
+    return wire('pages')->get('/')->httpUrl.$this->shop_error_url;
+  }
+
+
+  public function init() {
+    $this->checkOutPage = wire('pages')->get('template=kiosk_checkout');   
+  }
+
+
+  public function addScripts() {
+    $additionalScripts = '<!-- :D THIS IS THE SCRIPTS HOOK -->';
+    $additionalScripts .= '<script type="text/javascript" src="'.wire('urls')->httpSiteModules.'Kiosk/scripts/_global.js?v='.time().'"></script>';
+    if($this->wire('page')->template=='kiosk_checkout'){
+      $additionalScripts .= '<script type="text/javascript" src="'.wire('urls')->httpSiteModules.'Kiosk/scripts/cart.js?v='.time().'"></script>';
+    } else {
+      $additionalScripts .= '<script type="text/javascript" src="'.wire('urls')->httpSiteModules.'Kiosk/scripts/cart_adder.js?v='.time().'"></script>';
+    }
+    $additionalScripts .= '<!-- THIS IS THE SCRIPTS HOOK :D -->';      
+    return $additionalScripts;
+  }
+
+
+  public function configDefaults() {
+
+    $configDefaults = array(
+      'number_circle' => '0',
+      'shop_form_sender_name' => 'Kiosk Default Shop',
+      'shop_form_sender_email' => 'james@datajungle.xyz',
+      'shop_form_receiver_name' => 'Kiosk Default Shop',
+      'shop_form_receiver_email' => 'brian@datajungle.xyz',
+      'shop_form_bcc_email' => 'john@datajungle.xyz',
+      'shop_countries_A' => '{"AT":"Österreich","DE":"Deutschland","CH":"Schweiz"}',
+      'shop_countries_B' => '{"AF":"Afghanistan","EG":"Ägypten","AX":"Ålandinseln","AL":"Albanien","DZ":"Algerien","AS":"Amerikanisch Samoa","AD":"Andorra","AO":"Angola","AI":"Anguilla","AQ":"Antarktis","AG":"Antigua und Barbuda","GQ":"Äquatorialguinea","AR":"Argentinien","AM":"Armenien","AW":"Aruba","AZ":"Aserbaidschan","ET":"Äthiopien","AU":"Australien","BS":"Bahamas","BH":"Bahrain","BD":"Bangladesch","BB":"Barbados","BY":"Belarus","BE":"Belgien","BZ":"Belize","BJ":"Benin","BM":"Bermuda","BT":"Bhutan","BO":"Bolivien","BQ":"Bonaire, Sint Eustatius und Saba","BA":"Bosnien und Herzegowina","BW":"Botswana","BV":"Bouvetinsel","BR":"Brasilien","IO":"Britisches Territorium im Indischen Ozean","BN":"Brunei","BG":"Bulgarien","BF":"Burkina Faso","BI":"Burundi","CL":"Chile","CN":"China","CK":"Cookinseln","CR":"Costa Rica","CW":"Curaçao","DK":"Dänemark","CD":"Demokratische Republik Kongo","DM":"Dominica","DO":"Dominikanische Republik","DJ":"Dschibuti","EC":"Ecuador","SV":"El Salvador","CI":"Elfenbeinküste","ER":"Eritrea","EE":"Estland","SZ":"Eswatini","FK":"Falklandinseln","FO":"Färöer-Inseln","FJ":"Fidschi","FI":"Finnland","FM":"Föderierte Staaten von Mikronesien","FR":"Frankreich","GF":"Französisch-Guayana","PF":"Französisch-Polynesien","TF":"Französische Süd- und Antarktisgebiete","MC":"Fürstentum Monaco","GA":"Gabun","GM":"Gambia","GE":"Georgien","GH":"Ghana","GI":"Gibraltar","GD":"Grenada","GR":"Griechenland","GL":"Grönland","GP":"Guadeloupe","GU":"Guam","GT":"Guatemala","GG":"Guernsey","GN":"Guinea","GW":"Guinea-Bissau","GY":"Guyana","HT":"Haiti","HM":"Heard und McDonald Inseln","HN":"Honduras","HK":"Hongkong","IN":"Indien","ID":"Indonesien","IM":"Insel Man","IQ":"Irak","IR":"Iran","IE":"Irland","IS":"Island","IL":"Israel","IT":"Italien","JM":"Jamaika","JP":"Japan","YE":"Jemen","JE":"Jersey","JO":"Jordanien","VG":"Jungferninseln (UK)","VI":"Jungferninseln (US)","KY":"Kaimaninseln","KH":"Kambodscha","CM":"Kamerun","CA":"Kanada","CV":"Kap Verde","KZ":"Kasachstan","QA":"Katar","KE":"Kenia","KG":"Kirgisistan","KI":"Kiribati","CC":"Kokosinseln","CO":"Kolumbien","KM":"Komoren","XK":"Kosovo","HR":"Kroatien","CU":"Kuba","KW":"Kuwait","LA":"Laos","LS":"Lesotho","LV":"Lettland","LB":"Libanon","LR":"Liberia","LY":"Libyen","LI":"Liechtenstein","LT":"Litauen","LU":"Luxemburg","MO":"Macau","MG":"Madagaskar","MW":"Malawi","MY":"Malaysia","MV":"Malediven","ML":"Mali","MT":"Malta","MA":"Marokko","MH":"Marshallinseln","MQ":"Martinique","MR":"Mauretanien","MU":"Mauritius","YT":"Mayotte","MX":"Mexiko","MD":"Moldawien","MN":"Mongolei","ME":"Montenegro","MS":"Montserrat","MZ":"Mosambik","MM":"Myanmar","NA":"Namibia","NR":"Nauru","NP":"Nepal","NC":"Neukaledonien","NZ":"Neuseeland","NI":"Nicaragua","NL":"Niederlande","NE":"Niger","NG":"Nigeria","NU":"Niue","KP":"Nordkorea","MP":"Nördliche Marianen","MK":"Nordmazedonien","NF":"Norfolkinsel","NO":"Norwegen","OM":"Oman","TL":"Osttimor","PK":"Pakistan","PS":"Palästina","PW":"Palau","PA":"Panama","PG":"Papua-Neuguinea","PY":"Paraguay","PE":"Peru","PH":"Philippinen","PN":"Pitcairninseln","PL":"Polen","PT":"Portugal","PR":"Puerto Rico","CG":"Republik Kongo","RE":"Réunion","RW":"Ruanda","RO":"Rumänien","RU":"Russland","MF":"Saint Martin","SB":"Salomonen","ZM":"Sambia","WS":"Samoa","SM":"San Marino","BL":"Sankt Bartholomäus","ST":"São Tomé und Príncipe","SA":"Saudi-Arabien","SE":"Schweden","SN":"Senegal","RS":"Serbien","SC":"Seychellen","SL":"Sierra Leone","ZW":"Simbabwe","SG":"Singapur","SX":"Sint Maarten","SK":"Slowakei","SI":"Slowenien","SO":"Somalia","ES":"Spanien","LK":"Sri Lanka","SH":"St. Helena, Ascension und Tristan da Cunha","KN":"St. Kitts und Nevis","LC":"St. Lucia","PM":"St. Pierre und Miquelon","VC":"St. Vincent und die Grenadinen","ZA":"Südafrika","SD":"Sudan","GS":"Südgeorgien und die Südlichen Sandwichinseln","KR":"Südkorea","SS":"Südsudan","SR":"Suriname","SJ":"Svalbard und Jan Mayen","SY":"Syrien","TJ":"Tadschikistan","TW":"Taiwan","TZ":"Tansania","TH":"Thailand","TG":"Togo","TK":"Tokelau","TO":"Tonga","TT":"Trinidad und Tobago","TD":"Tschad","CZ":"Tschechien","TN":"Tunesien","TR":"Türkei","TM":"Turkmenistan","TC":"Turks und Caicosinseln","TV":"Tuvalu","UG":"Uganda","UA":"Ukraine","HU":"Ungarn","UY":"Uruguay","UZ":"Usbekistan","VU":"Vanuatu","VA":"Vatikanstadt","VE":"Venezuela","AE":"Vereinigte Arabische Emirate","US":"Vereinigte Staaten von Amerika","GB":"Vereinigtes Königreich","VN":"Vietnam","WF":"Wallis und Futuna","CX":"Weihnachtsinsel","EH":"Westsahara","CF":"Zentralafrikanische Republik","CY":"Zypern"}',
+      'google_recaptcha_site_key' => '',
+      'paypal_base_url' => 'https://api.sandbox.paypal.com',
+      'shop_success_url' => 'checkout/thanks',
+      'shop_error_url' => 'checkout/error'
+    );
+
+    $customSettings = wire('modules')->getConfig($this);
+    foreach($configDefaults as $key => $value){
+      if(isset($customSettings[$key]) && $customSettings[$key] != ''){continue;} 
+      if($value == ''){continue;} 
+      $customSettings[$key] = $value;
+      wire('modules')->saveConfig($this, $customSettings);
+      $this->message('default values filled in Kiosk config');
+    }
+
+  }
+
+
+  public function handleStaticContent($input) {
+    if($this->issetOrder()==false){echo 'resetting order'; $this->resetOrder();}
+    if($this->issetPayPalSession()==false){echo 'resetting paypal session'; $this->resetPayPalSession();}
+    if(isset($input->get->PayerID)){echo $input->get->PayerID; $this->setPayPalPayerId($input->get->PayerID);}
+    if(isset($input->get->token)){echo $input->get->token; $this->setPayPalToken($input->get->token);}
+  }
+
+
+  public function createEmailMarkup($order) {
+    if($this->email_template != '') {
+      include($this->email_template);
+    } else {
+      include('Kiosk_default_email_template.php');
+    }
+    return $email_markup;
+  }
+
+
+  public function createSummaryMarkup() {
+
+    $order = $this->getOrder();
+
+    if($order==null){
+        return __('Ihr Warenkorb ist nach wie vor leer.');
+    }
+
+    $cartItems = json_decode($_SESSION['kiosk']['order']['cartItems'], true);
+    
+    $out =
+
+      '<div>
+          <div id="confirmationimages" class="cart-items uk-margin">
+              <div class="uk-margin-medium">';
+
+                  foreach($cartItems as $item) :
+                      $out .= '<span class="uk-flex-inline uk-margin-small-right uk-margin-bottom productimages">
+                              <img width="'.$item['productwidth'].'" class="cartproduct" src="'.$item['img'].'"/>
+                          </span>';
+                  endforeach;
+
+    $out .= 
+
+      '</div>
+          </div>
+
+          <table class="uk-margin confirmationtable">
+              <tbody id="confirmationtable" class="cart-items">';
+
+                  foreach($cartItems as $item) :
+                      $out .= '<tr data-tag="'.$item['tag'].'">
+                              <td class="item uk-width-1-2">
+                                  <span class="quantity">'.$item['inCart'].' </span>
+                                  <span uk-icon="icon:close; ratio:0.5;"></span> 
+                                  <strong>'.$item['title'].'</strong>
+                                  <span class="grey">'.__('à').' '.__('EUR').' '.$this->dotToComma($item['price']).' '.'=</span>
+                                  <span class="itemtotal" style="text-align: right !important; right: 0; margin-right: 0; position: relative;">'.__('EUR').' '.$this->dotToComma($item['totalprice']).'</span>
+                              </td>
+                          </tr>';
+                  endforeach;
+
+                  $out .= '<tr><td>&nbsp;</td></tr>
+                          <tr>
+                              <td class="item">
+                                  <span>'.__('ZWISCHENSUMME:').'</span>
+                                  <span>EUR '.$this->dotToComma($_SESSION['kiosk']['order']['subTotal']).'</span>
+                              </td>
+                          </tr>
+                          <tr>
+                              <td class="item">
+                                  <span>('.__('inkl. MWSt.:').'</span>
+                                  <span>'.__('EUR').' '.$this->dotToComma($_SESSION['kiosk']['order']['totalTaxes']).')</span>
+                              </td>
+                          </tr>
+                          <tr>
+                              <td class="item">
+                                  <span>'.__('VERSAND:').'</span>
+                                  <span>'.__('EUR').' '.$this->dotToComma($_SESSION['kiosk']['order']['shipping']).'</span>
+                              </td>
+                          </tr>
+                          <tr>
+                              <td class="item">
+                                  <span><strong>'.__('GESAMTPREIS:').'</strong></span>
+                                  <span><strong>'.__('EUR').' '.$this->dotToComma($_SESSION['kiosk']['order']['totalAndShipping']).'</strong></span>
+                              </td>
+                          </tr>';
+
+    $out .= 
+
+      '</tbody>
+          </table>
+          <div class="uk-margin">
+              <div uk-grid>
+                  <div id="confirmaddress1" class="uk-width-1-2@m uk-width-1-1@s">';
+
+              $address = json_decode($_SESSION['kiosk']['order']['shippingDetails'], true);
+              $out .= '<h3 class="section-header">'.__('Versandadresse').'</h3>
+                  <span>'.$address['first'].'</span>
+                  <span>'.$address['last'].'</span>
+                  <br/>
+                  <span>'.$address['email'].'</span>
+                  <br/>
+                  <span>'.$address['street'].'</span>
+                  <br/>
+                  <span>'.$address['zip'].'</span>
+                  <span>'.$address['city'].'</span>
+                  <br/>
+                  <span>'.$address['state'].'</span>';
+
+    $out .= 
+      '</div>
+              <div id="confirmaddress2" class="uk-width-1-2@m uk-width-1-1@s">';
+
+          if($address['sameAddress']=='false'):
+              $address = json_decode($_SESSION['kiosk']['order']['billingDetails'], true);
+          endif;
+
+    $out .= 
+      '<h3 class="section-header">'.__('Rechnungsadresse').'</h3>
+          <span>'.$address['first'].'</span>
+          <span>'.$address['last'].'</span>
+          <br/>
+          <span>'.$address['email'].'</span>
+          <br/>
+          <span>'.$address['street'].'</span>
+          <br/>
+          <span>'.$address['zip'].'</span>
+          <span>'.$address['city'].'</span>
+          <br/>
+          <span>'.$address['state'].'</span>';
+
+    $out .= 
+      '</div>
+          </div>
+          </div>
+          <div class="uk-margin" id="confirmpaymentmethod">
+          <h3>'.__('Zahlungsmethode').'</h3><p>';
+
+          $out .= $_SESSION['kiosk']['order']['paymentMethod'];
+
+          $out .= '</p>
+          </div>
+          <strong>'.__('In manchen Versandländern außerhalb der EU können Zoll-Gebühren anfallen.').'</strong>
+      </div>';
+
+    return $out;
+
+  }
+
+
+  public function createOrderPage($order) {
+
+    $cartItems = json_decode($order['cartItems'], true);
+    $shippingDetails = json_decode($order['shippingDetails'], true);
+    if($shippingDetails['sameAddress']=='true'){
+      $billingDetails = $shippingDetails;
+    } else {
+      $billingDetails = json_decode($order['billingDetails'], true);
+    }
+
+    $o = new Page();
+    $o->of(false);
+    $o->parent = wire('pages')->get('kiosk_orders');
+    $o->template = 'kiosk_order';
+    $o->title = __('Bestellung von').' '.ucwords($billingDetails['last']).' '.ucwords($billingDetails['first']);
+    $o->name = wire('sanitizer')->pageName($o->title);
+    $o->kiosk_order_customer_name = ucwords($billingDetails['last']).' '.ucwords($billingDetails['first']);
+    $i=0;
+    $products = [];
+    foreach ($cartItems as $cartitem) {
+        $products[$i] = [
+            'tag' => $cartitem['tag'],
+            'inCart' => strval($cartitem['inCart'])
+        ];
+        $i++;
+    }
+    $o->kiosk_order_products = json_encode($products, true);
+    $o->kiosk_order_customer_emailaddress = $billingDetails['email'];
+    $o->kiosk_order_customer_address_shipping = 
+        ucwords($shippingDetails['first']).' '.ucwords($shippingDetails['last']).'<br>'.
+        $shippingDetails['street'].'<br>'.
+        $shippingDetails['zip'].'<br>'.
+        $shippingDetails['city'].'<br>'.
+        $shippingDetails['state'];
+    $o->kiosk_order_customer_address_billing = 
+        ucwords($billingDetails['first']).' '.ucwords($billingDetails['last']).'<br>'.
+        $billingDetails['street'].'<br>'.
+        $billingDetails['zip'].'<br>'.
+        $billingDetails['city'].'<br>'.
+        $billingDetails['state'];
+    $o->kiosk_order_payment_method = $order['paymentMethod'];
+    $o->kiosk_order_total_and_shipping = 
+        __('Zwischensumme:').' '.$order['subTotal'].'<br>'.
+        __('Versand: ').' '.$order['shipping'].'<br>'.
+        '('.__('inkl. MWSt.:').' '.$order['totalTaxes'].')<br>'.
+        '<strong>'.__('Gesamtsumme:').' '.$order['totalAndShipping'].'</strong>';
+
+    $data = wire('modules')->getConfig('Kiosk');
+    $n = $this->number_circle;
+    $n++;
+    $data['number_circle'] = $n;
+    // $this->number_circle = $n;
+    $this->wire('modules')->saveConfig($this, $data);
+    $o->kiosk_order_id = $n;
+    $o->save();
+    $o->of(true);
+
+  }
+
+
+  protected function dotToComma($item) {
+    $priceComma = number_format((float)$item, 2, ',', '');
+    return $priceComma;
+  }
+
+
+  public function sendOrderEmails($email_markup) {
+
+    $kioskConfig = modules()->getConfig('Kiosk');
+
+    $shop_form_sender_name = $kioskConfig['shop_form_sender_name'];
+    $shop_form_sender_email = $kioskConfig['shop_form_sender_email'];
+    $shop_form_sender = array('name' => $shop_form_sender_name, 'email' => $shop_form_sender_email);
+
+    $shop_form_receiver_name = $kioskConfig['shop_form_receiver_name'];
+    $shop_form_receiver_email = $kioskConfig['shop_form_receiver_email'];
+    $shop_form_receiver = array('name' => $shop_form_receiver_name, 'email' => $shop_form_receiver_email);
+
+    $shop_form_bcc_email = $kioskConfig['shop_form_bcc_email'];
+
+    try {
+
+      // if ($response->success == false && $paymentMethod == 'Erlagschein') {
+      //     throw new WireException('Captcha abgelaufen');
+      // }
+
+      $wireemail_order = wireMail(); // calling an empty wireMail() returns a wireMail object
+
+      $wireemail_order->to($shop_form_receiver['email']);
+      $wireemail_order->toName($shop_form_receiver['name']); // if you don't have set a default sender in config
+      $wireemail_order->from($shop_form_sender['email']); // if you don't have set a default sender in config
+      $wireemail_order->fromName($shop_form_sender['name']); // if you don't have set a default sender in config
+
+      if($shop_form_bcc_email!=''){
+        $wireemail_order->bcc($shop_form_bcc_email);
+      }
+
+      $wireemail_order->subject($email_markup['subject_order']);
+      $wireemail_order->bodyHTML($email_markup['email_order']);
+      $wireemail_order->replyto($email_markup['email_billing']);
+
+      $numSent = $wireemail_order->send();
+
+      $wireemail_confirmation = wireMail(); // calling an empty wireMail() returns a wireMail object
+
+
+      $wireemail_confirmation->to($email_markup['email_billing']);
+      $wireemail_confirmation->toName($email_markup['fullname_billing']);
+
+      $wireemail_confirmation->from($shop_form_sender['email']); // if you don't have set a default sender in config
+      $wireemail_confirmation->fromName($shop_form_sender['name']); // if you don't have set a default sender in config
+      // or if you want to override that
+
+      $wireemail_confirmation->subject($email_markup['subject_confirmation']);
+      $wireemail_confirmation->bodyHTML($email_markup['email_confirmation']);
+      $wireemail_confirmation->replyto($email_markup['email_billing']);
+
+      $numSent = $wireemail_confirmation->send();
+
+      return $response['email_order'] = $wireemail_order;
+      return $response['email_confirmation'] = $wireemail_confirmation;
+
+    } catch (WireException $e) {
+
+      return $response['error'] = $e;
+
+    }
+
+
+    function getCaptcha($token) {
+      $response_json = file_get_contents('https://www.google.com/recaptcha/api/siteverify?secret='.SECRET_KEY.'&response='.$token);
+      $response = json_decode($response_json);
+      $response->source = "cart";
+      $response_json = json_encode($response);
+      session()->set('captcharesponse', $response_json);
+      return $response;
+    }
+
+  }
+
+
+  public function fetchPayPalAccessToken() {
+
+    if (
+      $this->getPayPalAccessToken() &&
+      $this->getPayPalAccessTokenExpires() &&
+      $this->getPayPalAccessTokenExpires() > time()
+    ) :
+      return $this->getPayPalAccessToken();
+    endif;
+    $curl = curl_init();
+    $options = [
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_URL => $this->paypal_base_url . '/v1/oauth2/token',
+      CURLOPT_HTTPHEADER => [
+        'Content-Type: application/x-www-form-urlencoded',
+        'Accept: application/json',
+        'Accept-Language: en_US'
+      ],
+      CURLOPT_USERPWD => $this->paypal_client_id.':'.$this->paypal_secret,
+      CURLOPT_POST => true,
+      CURLOPT_POSTFIELDS => 'grant_type=client_credentials'
+    ];
+
+    curl_setopt_array($curl, $options);
+    $result = curl_exec($curl);
+    if(curl_errno($curl)) {
+      echo curl_errno($curl);
+    }
+    $data = json_decode($result, true);
+    curl_close($curl);
+
+    $this->setPayPalAccessToken($data['access_token']);
+    $this->setPayPalAccessTokenExpires(time()+$data['expires_in']);
+
+    return $data['access_token'];
+
+  }
+
+
+  public function createPayPalOrder($PayPalAccessToken, $order) {
+
+    $cartItems = json_decode($order['cartItems'], true);
+
+    $address = json_decode($order['shippingDetails'], true);
+    if($address['sameAddress']==false){
+      $address = json_decode($order['billingDetails'], true);
+    }
+
+    $amountObject = new \stdClass(); 
+    $amountObject->currency_code = 'EUR';
+    $amountObject->value = $order['totalAndShipping'];
+
+    $payer = new \stdClass();
+    $payer->address = new \stdClass();
+    // module overwrites paypal name
+    $payer->address->address_line_1 = $address['street'];
+    $payer->address->admin_area_2 = $address['city'];
+    $payer->address->admin_area_1 = $address['state'];
+    $payer->address->postal_code = $address['zip'];
+    $payer->address->country_code = $address['countrycode'];
+
+    $object = new \stdClass();
+    $object->amount = $amountObject;
+
+    $object->shipping = new \stdClass();
+    $object->shipping->address = $payer->address;
+
+    $applicationContext = new \stdClass();
+    $applicationContext->shipping_preference = 'SET_PROVIDED_ADDRESS';
+    // $applicationContext->return_url = 'https://foobar.roofaccess.org/checkout';
+    $applicationContext->return_url = $this->checkOutPage->httpUrl();
+    $applicationContext->cancel_url = $this->errorURL();
+
+    $data = [
+      'payer' => $payer,
+      'application_context' => $applicationContext,
+      'intent' => 'CAPTURE',
+      'purchase_units' => [
+        $object
+      ]
+    ];
+
+    $dataString = json_encode($data);
+
+    $curl = curl_init();
+    $options = [
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_URL => $this->paypal_base_url . '/v2/checkout/orders',
+      CURLOPT_HTTPHEADER => [
+        'Content-Type: application/json',
+        // 'Accept: application/json',
+        'Authorization: Bearer ' . $PayPalAccessToken
+      ],
+      CURLOPT_POST => true,
+      CURLOPT_POSTFIELDS => $dataString
+    ];
+
+    curl_setopt_array($curl, $options);
+    $result = curl_exec($curl);
+    if(curl_errno($curl)) {
+      echo curl_errno($curl);
+    }
+    curl_close($curl);
+    $data = json_decode($result, true);
+
+    $url = '';
+    foreach($data['links'] as $link) {
+      if ($link['rel'] !== 'approve') {
+        continue;
+      }
+      if(gettype($url)=='string'){
+        $url = $link['href'];
+        $this->setPayPalApproveOrderUrl($url);   
+      }
+    }
+
+    if(gettype($data['id'])=='string'){
+      $this->setPayPalRequestId($data['id']);
+    } else {
+      $response['error'] = __('Something went wrong on PayPal\'s site, please try again.');
+    }
+
+      $response = array();
+      $response['url'] = $url;
+      $response['data'] = $data;
+
+    return $response;
+    
+  }
+
+
+  function capturePayment($PayPalAccessToken, $PayPalPayerId, $PayPalRequestId) {
+
+    $curl = curl_init();
+    $options = [
+      CURLOPT_RETURNTRANSFER => true,
+      CURLOPT_URL => $this->paypal_base_url . '/v2/checkout/orders/' . $PayPalRequestId . '/capture',
+      CURLOPT_HTTPHEADER => [
+        'Content-Type: application/json',
+        'Authorization: Bearer ' . $PayPalAccessToken
+      ],
+      CURLOPT_POST => true,
+      CURLOPT_POSTFIELDS => '{"PayerID":"'.$PayPalPayerId.'"}'
+    ];
+
+    curl_setopt_array($curl, $options);
+    $result = curl_exec($curl);
+    if(curl_errno($curl)) {
+      echo curl_errno($curl);
+    }
+
+    curl_close($curl);
+    $data = json_decode($result, true);
+
+    return $data;
+
+  }
+
+
+
+
+  public function handleAJAX($input) {
+
+    $action = $input->post->action;
+
+    $response = array();
+    $response['action'] = $action;
+
+    if ($action == 'sendFormData') : 
+
+        $paymentMethod = $input->post->paymentMethod;
+
+        $response['message'] = 'this is ajax #1';
+
+        $order = array(
+            'cartItems' => $input->post->cartItems,
+            'totalItems' => $input->post->totalItems,
+            'subTotal' => $input->post->subTotal,
+            'shipping' => $input->post->shipping,
+            'totalTaxes' => $input->post->totalTaxes,
+            'totalAndShipping' => $input->post->totalAndShipping,
+            'shippingDetails' => $input->post->shippingDetails,
+            'billingDetails' => $input->post->billingDetails,
+            'paymentMethod' => $paymentMethod,
+        );
+
+        $this->setOrder($order);
+
+        $response['summaryMarkup'] = $this->createSummaryMarkup();
+        $response['paymentMethod'] = $paymentMethod;
+
+        if ($paymentMethod=='PayPal') :
+            $PayPalAccessToken = $this->fetchPayPalAccessToken();
+            $PayPalAccessTokenExpires = $this->getPayPalAccessTokenExpires();
+            $createPayPalOrder = $this->createPayPalOrder($PayPalAccessToken, $order);
+
+            $response['PayPalApproveOrderUrl'] = $createPayPalOrder['url'];
+            $response['status'] = $createPayPalOrder['data']['status'];
+            $response['orderstatus'] = 'PP-'.$createPayPalOrder['data']['status'];
+            // $response['data'] = $createPayPalOrder['data'];
+        else :
+            $response['orderstatus'] = 'DF-CREATED';
+            // $response['order'] = json_encode($this->getOrder());
+        endif;
+
+
+    elseif ($action == 'capturePayment') :
+
+        $response['message'] = 'this is ajax #2';
+        $PayPalPayerId = $response['PayPalPayerId'] = $this->getPayPalPayerId();
+        $PayPalRequestId = $this->getPayPalRequestId();
+        $PayPalAccessToken = $this->getPayPalAccessToken();
+        if($PayPalAccessToken != '' && $PayPalPayerId != '' && $PayPalRequestId != '') :
+          $data = $this->capturePayment($PayPalAccessToken, $PayPalPayerId, $PayPalRequestId);
+          $response['data'] = $data;
+          if($response['data']['status']=='COMPLETED') :
+            $this->createOrderPage($this->getOrder());
+            $email_markup = $this->createEmailMarkup($this->getOrder()); 
+            $sendOrderEmails = $this->sendOrderEmails($email_markup);
+            $response['sendOrderEmails'] = $sendOrderEmails;
+            $response['redirectURL'] = $this->successURL();
+            $this->resetOrder();
+            $this->resetPayPalSession();
+          else :
+            $response['redirectURL'] = $this->errorURL();
+          endif;
+        endif;
+
+    elseif ($action == 'deferredPayment') : // second ajax call uses POST method
+
+        if($this->getOrder()!=null){
+          $this->createOrderPage($this->getOrder());          
+        }
+        $email_markup = $this->createEmailMarkup($this->getOrder()); 
+        $sendOrderEmails = $this->sendOrderEmails($email_markup);
+
+        $response['sendOrderEmails'] = $sendOrderEmails;
+        $response['data']['orderstatus'] = 'COMPLETED';
+        $response['redirectURL'] = $this->successURL();
+
+        $this->resetOrder();
+        $this->resetPayPalSession();
+
+    endif;
+
+    echo json_encode($response);
+
+  }
+
+
+
+
+  public function renderCheckoutSteps() {
+
+      $checkSameAddressCheckbox = $this->checkSameAddressCheckbox();
+
+      $countries_list_A = $this->shop_countries_A;
+      $countries_list_A = json_decode($countries_list_A, true);
+
+      $countries_list_B = $this->shop_countries_B;
+      $countries_list_B = json_decode($countries_list_B, true);
+
+
+      $out = '<section id="step1">
+        <h2 class="stepsnav section-header">1. '.__('Warenkorb').'</h2>
+        <div class="checkoutsteps">
+            <div style="display: none;" class="uk-alert-warning infoalert" uk-alert>:D</div>
+            <div id="cart">    
+                <div id="carttable">
+                    <div id="cartbody">
+                    </div>
+                    <table class="uk-margin">
+                      <tbody id="carttotals">
+                      </tbody>
+                  </table>
+                </div>
+            </div>            
+
+            <div class="loadingdiv"></div>
+
+            <div class="uk-margin-large">
+                <a href="../" class="uk-button uk-button-primary uk-margin-small-bottom uk-width-auto@m uk-width-1-1@s">'.__('zurück').'</a>
+                <button class="proceed uk-button uk-button-primary uk-margin-small-bottom uk-width-auto@m uk-width-1-1@s">'.__('weiter').'</button>
+            </div>
+        </div>
+    </section>
+    <hr>
+    <section id="step2">
+        <h2 class="stepsnav section-header done">2. '.__('Adresse').'</h2>
+        <div class="checkoutsteps" style="display: none">
+            <div style="display: none;" class="uk-alert-warning infoalert" uk-alert>
+                <div class="addressalertbox uk-width-1-2">:D</div>
+                <div class="addressalertbox uk-width-1-2">:D</div>
+            </div>
+            <div uk-grid>
+                <div class="uk-width-1-2@m uk-width-1-1@s">
+                    <div id="address1">
+                        <h3 class="section-header">'.__('Versandadresse').'</h3>
+                        <input class="uk-input required shippingform" type="text" title="first" placeholder="'.__('Vorname').'" value="'.$this->getAddressFieldValue('first', 'shippingDetails').'">
+                        <input class="uk-input required shippingform" type="text" title="last" placeholder="'.__('Nachname').'" value="'.$this->getAddressFieldValue('last', 'shippingDetails').'">
+                        <input class="uk-input required shippingform" type="email" title="email" placeholder="'.__('Email-Adresse').'" value="'.$this->getAddressFieldValue('email', 'shippingDetails').'">
+                        <input class="uk-input required shippingform" type="text" title="street" placeholder="'.__('Straße und Hausnummer').'" value="'.$this->getAddressFieldValue('street', 'shippingDetails').'">
+                        <input class="uk-input required shippingform" type="text" title="zip" placeholder="'.__('PLZ').'" value="'.$this->getAddressFieldValue('zip', 'shippingDetails').'">
+                        <input class="uk-input required shippingform" type="text" title="city" placeholder="'.__('Ort').'" value="'.$this->getAddressFieldValue('city', 'shippingDetails').'">';
+
+                        $c = $this->checkAddress(null, 'shippingDetails');
+
+                        $out.= '<select class="uk-input shippingform" title="state">
+                            <optgroup>
+                                <option disabled '.$c['default'].' value="">'.__('Land auswählen').'…</option>';
+
+                                foreach ($countries_list_A as $key => $value) :
+                                $c = $this->checkAddress($key, 'shippingDetails');
+                                    $out .= '<option '.$c['current'].' title="'.$value.'" value="'.$key.'">'.$value.'</option>';
+                                endforeach;
+
+                        $out .= '</optgroup>';
+                        $out .=  '<optgroup>';
+                                foreach ($countries_list_B as $key => $value) :
+                                    $c = $this->checkAddress($key, 'shippingDetails');
+                                    $out .=  '<option '.$c['current'].' title="'.$value.'" value="'.$key.'">'.$value.'</option>';
+                                endforeach;
+                        $out .=  '</optgroup>';
+                        $out .=  '</select>';
+                    
+                    $out .= 
+                    '</div>
+                </div>
+
+                <div class="uk-width-1-2@m uk-width-1-1@s">
+                    <div id="address2" style="'.$checkSameAddressCheckbox['displayBilling'].'">
+                        <h3 class="section-header">'.__('Rechnungsadresse').'</h3>
+                        <input class="uk-input billingform" type="text" title="first" placeholder="'.__('Vorname').'" value="'.$this->getAddressFieldValue('first', 'billingDetails').'">
+                        <input class="uk-input billingform" type="text" title="last" placeholder="'.__('Nachname').'" value="'.$this->getAddressFieldValue('last', 'billingDetails').'">
+                        <input class="uk-input billingform" type="email" title="email" placeholder="'.__('Email-Adresse').'" value="'.$this->getAddressFieldValue('email', 'billingDetails').'">
+                        <input class="uk-input billingform" type="text" title="street" placeholder="'.__('Straße und Hausnummer').'" value="'.$this->getAddressFieldValue('street', 'billingDetails').'">
+                        <input class="uk-input billingform" type="text" title="zip" placeholder="'.__('PLZ').'" value="'.$this->getAddressFieldValue('zip', 'billingDetails').'">
+                        <input class="uk-input billingform" type="text" title="city" placeholder="'.__('Ort').'" value="'.$this->getAddressFieldValue('city', 'billingDetails').'">';
+
+                        $c = $this->checkAddress(null, 'billingDetails');
+
+                        $out .= '<select class="uk-input billingform" title="state">
+                            <optgroup>
+                                <option disabled '.$c['default'].' value="">'.__('Land auswählen').'…</option>';
+                                foreach ($countries_list_A as $key => $value) :
+                                    $c = $this->checkAddress($key, 'billingDetails');
+                                    $out .=  '<option '.$c['current'].' title="'.$value.'" value="'.$key.'">'.$value.'</option>';
+                                endforeach;
+                        $out .=  '</optgroup>';
+                        $out .=  '<optgroup>';
+                                foreach ($countries_list_B as $key => $value) :
+                                    $c = $this->checkAddress($key, 'billingDetails');
+                                    $out .=  '<option '.$c['current'].' title="'.$value.'" value="'.$key.'">'.$value.'</option>';
+                                endforeach;
+                        $out .=  '</optgroup>';
+                        $out .=  '</select>';
+                    
+                    $out .= 
+                    '</div>
+                </div>
+                <div class="uk-margin uk-grid-small uk-child-width-auto uk-grid">
+                    <label><input id="sameaddress" class="uk-checkbox" type="checkbox" '.$checkSameAddressCheckbox['checkbox'].'> '.__('gleiche Rechnungsadresse').'</label>
+                </div>
+            </div>
+
+            <div class="loadingdiv"></div>
+
+            <div class="uk-margin-large">
+                <button class="back uk-button uk-button-primary uk-margin-small-bottom uk-width-auto@m uk-width-1-1@s">'.__('zurück').'</button>
+                <button class="proceed uk-button uk-button-primary uk-margin-small-bottom uk-width-auto@m uk-width-1-1@s">'.__('weiter').'</button>
+            </div>
+        </div>
+    </section>
+    <hr>
+    <section id="step3">
+        <h2 class="stepsnav section-header done">3. '.__('Zahlungsweise').'</h2>
+        <div class="checkoutsteps" style="display: none">
+            <div style="display: none;" class="uk-alert-warning infoalert" uk-alert>:D</div>
+        
+            <div class="uk-margin">
+
+                <div>
+                    <label><input id="paymentMethod-deferred" class="uk-radio paymentbutton" title="'.__('Erlagschein').'" type="radio" name="paymentmethod"> '.__('Erlagschein').'</label>
+                </div>
+                <div>
+                    <label>
+                        <input 
+                            id="paymentMethod-paypal" 
+                            class="uk-radio paymentbutton" 
+                            title="PayPal" 
+                            data-ppstatus="'.$this->getPayPalStatus().'" 
+                            type="radio" 
+                            name="paymentmethod"> PayPal</label>
+                </div>
+
+            </div>
+
+            <div class="loadingdiv"></div>
+
+            <div class="uk-margin-large">
+                <button class="back uk-button uk-button-primary uk-margin-small-bottom uk-width-auto@m uk-width-1-1@s">'.__('zurück').'</button>
+                <button 
+                    id="approveorder" 
+                    type="button"
+                    class="proceed uk-button uk-button-primary uk-margin-small-bottom uk-width-auto@m uk-width-1-1@s"
+                    >'.__('weiter').'</button>
+            </div>
+        </div>
+    </section>
+    <hr>
+    <section id="step4">
+        <h2 class="stepsnav section-header done">4. '.__('Zusammenfassung').'</h2>
+        <div class="checkoutsteps" style="display: none">
+            <div style="display: none;" class="uk-alert-warning infoalert" uk-alert>:D</div>
+            <div id="summarymarkup">'.$this->createSummaryMarkup().'</div>
+            <div class="uk-margin uk-grid-small uk-child-width-auto uk-grid">
+                <label><input id="privacy" class="uk-checkbox" type="checkbox"> ich habe die <a href="#">Datenschutzerklärung</a> sowie die <a href="#">AGB</a> zur Kenntnis genommen und akzeptiere diese.</label>
+            </div>
+
+            <div class="loadingdiv"></div>
+
+            <div class="uk-margin-large">
+                <button class="back uk-button uk-button-primary uk-margin-small-bottom uk-width-auto@m uk-width-1-1@s">'.__('zurück').'</button>
+                <button 
+                    id="submitorder" 
+                    type="button"
+                    class="proceed uk-button uk-button-primary uk-margin-small-bottom uk-width-auto@m uk-width-1-1@s"
+                    >'.__('Zahlungspflichtig bestellen').'</button>
+            </div>
+        </div>
+    </section>';
+
+    return $out;
+
+  }
+
+  public function renderMiniCart() {
+
+    $out = '<div id="headercart" class="uk-text-right">';
+    $out .= '<div>';
+
+            if (wire('page') == $this->checkOutPage) : 
+                $out .= '<a href="#" class="uk-link-reset checkoutlink">';
+            else: 
+                $out .= '<a id="checkoutlink" href="'.$this->checkOutPage->url.'" uk-toggle="target: #cartpreview" class="uk-link-reset checkoutlink">';
+            endif;
+
+    $out .= '<div style="width:25px;"></div>';
+
+    $out .= '<span class="minicart">
+                    <span id="itemsummary" class="whiteback uk-badge uk-text-middle itemsummary">0</span>
+                    <span id="pricesummary" class=" uk-text-middle">€0,00</span>
+                </span>
+            </a>
+        </div>
+    </div>';
+
+    $out .= '
+      <div id="cartpreview" class="uk-width-full" uk-offcanvas="flip: true; mode: slide;">
+          <div class="uk-offcanvas-bar uk-width-full@s uk-width-1-3@m">
+              <div>
+                  <a class="inverted_link" href="'.$this->checkOutPage->url.'">
+                      <span class="striking whitefont">'.__('Warenkorb').' (<span class="itemsummary">0</span>)</span>
+                  </a>
+                  <div class="uk-flex uk-flex-middle uk-grid-small uk-margin" id="cartpreviewitems" uk-grid></div>
+                  <div id="cartpreviewbuttons"></div>
+              </div>
+          </div>
+      </div>';
+
+    return $out;
+
+  }
+
+
+  public function ___renderBuyButton($item, $label) {
+
+    if($item->images->count()) : 
+      if($item->kiosk_product_width != '') :
+        $data_img = $item->images->first->width($item->kiosk_product_width)->httpUrl;
+      else :
+        $data_img = $item->images->first->httpUrl;
+      endif;
+    endif;
+
+    $button = 
+    '<button 
+       class="uk-button uk-button-primary btn btn-primary addtocartbutton" 
+       data-tag="'.$item->id.'" 
+       data-title="'.$item->title.'" 
+       data-source="'.$item->parent->name.'" 
+       data-url="'.$item->url.'"
+       data-img="'.$data_img.'"
+       data-productwidth="'.$item->kiosk_product_width.'" 
+       data-taxrate="'.$item->kiosk_product_tax_rate.'" 
+       data-shipping="'.$item->kiosk_product_shipping.'" 
+       data-stackprice="'.htmlspecialchars(json_encode($this->getStackPricesArray($item))).'" 
+       style="white-space: nowrap" 
+       type="button">'.$label.'</button>';
+
+    return $button;
+
+  }
+
+  public function ___getSinglePrice($item) {
+    return $this->dotToComma($this->___getSpecificStackPrice($this->getStackPricesArray($item), 1));
+  }
+
+  public function ___getSpecificStackPrice($stackPricesArray, $amount) {
+    $price = $stackPricesArray[0]['sp'];
+    foreach($stackPricesArray as $sp) :
+      if ($amount >= $sp['qu']) {
+        $price = $sp['sp'];
+      }
+    endforeach;
+    return $price;
+  }
+
+  protected function getStackPricesArray($item) {
+    if (count($item->kiosk_product_stack_prices)) : 
+      $stack_prices = array();
+      $i = 0;
+      foreach ($item->kiosk_product_stack_prices as $kpsp) :
+          $pricing = array(
+              'qu' => $kpsp->repeater_product_quantity, 
+              'sp' => $kpsp->repeater_product_stackprice,
+              'sh' => $kpsp->repeater_product_shipping
+          );
+          $stack_prices[$i] = $pricing;
+          $i++;
+      endforeach;
+      return $stack_prices;
+    else :
+      return 
+      array(
+        array(
+          'qu' => 0, 
+          'sp' => 0,
+          'sh' => 0
+        )
+      );
+    endif;
+  } 
+
+
+  // SETTER AND GETTER
+
+  public function setPayPalAccessToken(string $PayPalAccessToken):void{
+    $_SESSION['kiosk']['PayPalSession']['PayPalAccessToken'] = $PayPalAccessToken;
+  }
+
+  public function getPayPalAccessToken():?string{
+    return isset($_SESSION['kiosk']['PayPalSession']['PayPalAccessToken'])?$_SESSION['kiosk']['PayPalSession']['PayPalAccessToken']:null;
+  }
+
+
+  public function setPayPalApproveOrderUrl(string $PayPalApproveOrderUrl):void{
+    $_SESSION['kiosk']['PayPalSession']['PayPalApproveOrderUrl'] = $PayPalApproveOrderUrl;
+  }
+
+  public function getPayPalApproveOrderUrl():?string{
+    return isset($_SESSION['kiosk']['PayPalSession']['PayPalApproveOrderUrl'])?$_SESSION['kiosk']['PayPalSession']['PayPalApproveOrderUrl']:null;
+  }
+
+  public function setPayPalAccessTokenExpires($time):void{
+    $_SESSION['kiosk']['PayPalSession']['PayPalAccessTokenExpires'] = $time;
+  }
+
+  public function getPayPalAccessTokenExpires():?string{
+    return isset($_SESSION['kiosk']['PayPalSession']['PayPalAccessTokenExpires'])?$_SESSION['kiosk']['PayPalSession']['PayPalAccessTokenExpires']:null;
+  }
+
+  public function setPayPalRequestId(string $PayPalRequestId):void{
+    $_SESSION['kiosk']['PayPalSession']['PayPalRequestId'] = $PayPalRequestId;
+  }
+
+  public function getPayPalRequestId():?string{
+    return isset($_SESSION['kiosk']['PayPalSession']['PayPalRequestId'])?$_SESSION['kiosk']['PayPalSession']['PayPalRequestId']:null;
+  }
+
+  public function setPayPalPayerId($PayPalPayerId){
+    if ($PayPalPayerId != '') {
+        $_SESSION['kiosk']['PayPalSession']['PayPalPayerId'] = $PayPalPayerId;      
+    } 
+  }
+
+  public function getPayPalPayerId(){
+    if (isset($_SESSION['kiosk']['PayPalSession']['PayPalPayerId'])) :
+        return $_SESSION['kiosk']['PayPalSession']['PayPalPayerId'];
+    else :
+        return '';
+    endif;
+  }
+
+  public function setPayPalToken($PayPalToken){
+    if ($PayPalToken != '') {
+        $_SESSION['kiosk']['PayPalSession']['PayPalToken'] = $PayPalToken;
+    } 
+  }
+
+  public function getPayPalToken(){
+    if (isset($_SESSION['kiosk']['PayPalSession']['PayPalToken'])) :
+        return $_SESSION['kiosk']['PayPalSession']['PayPalToken'];
+    else :
+        return '';
+    endif;
+  }
+
+  public function setOrder(array $order) {
+    if ($order != '' && $order != null) {
+        $_SESSION['kiosk']['order'] = $order;
+    } 
+  }
+
+  public function getOrder(){
+    if(isset($_SESSION['kiosk']['order'])) {
+      return $_SESSION['kiosk']['order'];
+    } else {
+      return 'EPIC FAIL';
+    }
+  }
+
+  public function getPayPalStatus() {
+    if (
+        isset($_SESSION['kiosk']['PayPalSession']['PayPalAccessToken']) &&
+        isset($_SESSION['kiosk']['PayPalSession']['PayPalPayerId']) &&
+        isset($_SESSION['kiosk']['PayPalSession']['PayPalRequestId']) &&
+        $_SESSION['kiosk']['PayPalSession']['PayPalAccessToken'] != '' &&
+        $_SESSION['kiosk']['PayPalSession']['PayPalPayerId'] != '' &&
+        $_SESSION['kiosk']['PayPalSession']['PayPalRequestId'] != ''
+    ) : return 'approved';
+    else : 
+        return 'pending';
+    endif;
+  }
+
+  public function issetOrder() {
+    if ($_SESSION['kiosk']['order'] != '') {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  public function issetPayPalSession() {
+    if ($_SESSION['kiosk']['PayPalSession'] != '') {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
+  public function resetOrder() {
+    // $_SESSION['kiosk']['order'] = '';
+    $_SESSION['kiosk']['order'] = [];
+  }
+
+  public function resetPayPalSession() {
+    $_SESSION['kiosk']['PayPalSession'] = [];
+  }
+
+  public function getAddressFieldValue(string $value, string $addresstype) {
+    if(isset($_SESSION['kiosk']['order'][$addresstype])) {
+     $temp = json_decode($_SESSION['kiosk']['order'][$addresstype], true);
+     return $temp[$value];
+    } 
+  }
+
+  public function checkAddress($key, $addresstype) {
+    if($this->issetOrder()){
+      if(isset($_SESSION['kiosk']['order'][$addresstype])) {
+        $temp = json_decode($_SESSION['kiosk']['order'][$addresstype], true);
+        if($temp['countrycode']==$key){
+          return [
+            'default' => '',
+            'current' => 'selected'
+          ];
+        } else {
+          return [
+            'default' => '',
+            'current' => ''
+          ];
+        }
+      } else {
+        return [
+          'default' => 'selected',
+          'current' => ''
+        ];
+      } 
+    } else {
+        return [
+          'default' => 'selected',
+          'current' => ''
+        ];
+    }
+  }
+
+
+  function checkSameAddressCheckbox() {
+    if($this->issetOrder()){
+      if(isset($_SESSION['kiosk']['order']['shippingDetails'])){
+        $shippingDetails = json_decode($_SESSION['kiosk']['order']['shippingDetails'], true);
+          if($shippingDetails['sameAddress']=='false'){
+              return [
+                'checkbox' => '',
+                'displayBilling' => 'display: block;',
+              ];
+          } else {
+              return [
+                'checkbox' => 'checked',
+                'displayBilling' => 'display: none;',             
+              ];
+          }
+      } else {
+          return [
+            'checkbox' => 'checked',
+            'displayBilling' => 'display: none;',
+          ];
+      }
+    } else {
+        return [
+          'checkbox' => 'checked',
+          'displayBilling' => 'display: none;',
+        ];
+    }
+  }
+
+
+}
+
+?>
