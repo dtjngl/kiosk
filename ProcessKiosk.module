@@ -9,7 +9,6 @@ class ProcessKiosk extends Process {
       'author' => 'FRE:D',
       'version' => 1,
       'requires' => 'Kiosk', 
-
       'page' => [
         'name' => 'kiosk_dashboard',
         'title' => 'Kiosk Dashboard',
@@ -22,7 +21,7 @@ class ProcessKiosk extends Process {
     $table = $this->modules->get('MarkupAdminDataTable');
     $table->encodeEntities = false;
 
-    $allorders = wire('pages')->find('template=template_custom_order');
+    $allorders = wire('pages')->find('template=kiosk_order');
     $allorders->sort('-created');
 
     $out = '<h2>'.__('Bestellungen').' (' . count($allorders) . ')</h2>';
@@ -34,7 +33,7 @@ class ProcessKiosk extends Process {
       $i=0;
       foreach ($order->fields as $f) :
         if($f->name=='title'){continue;}
-        if($f->name=='custom_order_products'){
+        if($f->name=='kiosk_order_products'){
           $products_array = json_decode($order->custom_order_products, true);
           foreach ($products_array as $item) {
             $field_values[$i] .= wire('pages')->get($item['tag'])->title.' ('.$item['inCart'].')<br>';
