@@ -1,0 +1,37 @@
+<?php
+
+class KioskSettings extends Process {
+
+    public static function getModuleInfo() {
+        return array(
+            'title' => 'KioskSettings',
+            'summary' => 'setup the Kiosk',
+            'author' => 'froot',
+            'version' => '0.0.1',
+            'requires' => 'Kiosk', 
+            'icon' => 'shopping-bag'
+        );
+    }
+
+    public function ___install() {
+
+    // ADMIN DROPDOWN PAGE :D
+
+        $pages = wire('pages');
+        $page = new Page();
+        $page->template = 'admin';
+        $page->parent = $pages->get($this->config->adminRootPageID)->child('name=setup');
+        $page->title = 'Kiosk Settings';
+        $page->name = 'kiosk-settings';
+        $page->process = $this;
+        $page->save();
+        $page->icon = 'shopping-bag';
+        $this->message('find your settings in: '.$page->path);
+
+    }
+
+    public function execute() {
+      return $this->wire->session->redirect(wire('modules')->getModuleEditUrl('Kiosk'));
+    }
+
+}
